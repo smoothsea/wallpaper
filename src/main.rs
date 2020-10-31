@@ -1,11 +1,13 @@
 mod behaviour;
+mod function;
 
 use clap::{App, Arg, SubCommand};
 use rand::{Rng};
 use std::env;
 use std::error::Error;
-use std::process::{Command, Stdio};
+use std::process::{Command};
 use std::{fs, thread, time};
+use function::{get_resolution, check_application};
 
 use crate::behaviour::download::{download};
 
@@ -231,6 +233,8 @@ fn get_params() -> Result<Params, Box<dyn Error>> {
         download_sfw = matches.subcommand_matches("download")
                         .unwrap()
                         .is_present("sfw");
+        get_resolution();
+        std::process::exit(1);
         download_resolution = Some(
             matches
                 .subcommand_matches("download")
@@ -297,20 +301,7 @@ fn check_dependency(params: &Params) {
     }
 
     for i in dependencies.iter() {
-        match Command::new(i)
-            .stdout(Stdio::null())
-            .stderr(Stdio::null())
-            .spawn()
-        {
-            Ok(_out) => {}
-            Err(e) => {
-                if let std::io::ErrorKind::NotFound = e.kind() {
-                    fatal!("{} 程序不存在，请先安装它", i);
-                } else {
-                    fatal!("{} 发生错误 :(", i);
-                }
-            }
-        }
+        check_application(i);
     }
 }
 
