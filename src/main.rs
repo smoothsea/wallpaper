@@ -28,7 +28,7 @@ pub struct Params {
     video_file: Option<String>,
     video_compress_dir: Option<String>,
     download_empty: bool,
-    download_resolution: Option<String>,
+    download_resolution: Option<Vec<String>>,
     download_sfw: bool
 }
 
@@ -40,7 +40,7 @@ impl Params {
         is_download: bool,
         video_compress_dir: Option<String>,
         download_empty: bool,
-        download_resolution: Option<String>,
+        download_resolution: Option<Vec<String>>,
         download_sfw: bool
     ) -> Params {
         Params {
@@ -180,7 +180,6 @@ fn get_params() -> Result<Params, Box<dyn Error>> {
                 .help("设置下载壁纸分辨率")
                 .takes_value(true)
                 .empty_values(false)
-                .required(true)
             ).arg(
                 Arg::with_name("sfw")
                 .long("sfw")
@@ -233,16 +232,18 @@ fn get_params() -> Result<Params, Box<dyn Error>> {
         download_sfw = matches.subcommand_matches("download")
                         .unwrap()
                         .is_present("sfw");
-        get_resolution();
-        std::process::exit(1);
-        download_resolution = Some(
-            matches
+        download_resolution =
+            match matches
                 .subcommand_matches("download")
                 .unwrap()
-                .value_of("resolution")
-                .unwrap_or("no resolution")
-                .to_owned(),
-        );
+                .value_of("resolution") {
+                Some(r) => {
+                    Some(vec![r.to_owned()])
+                },
+                None => {
+                    Some(get_resolution().unwrap())
+                }
+            };
 
         dir = matches.subcommand_matches("download")
         .unwrap()

@@ -6,6 +6,7 @@ use std::error::Error;
 use std::fs::*;
 use std::io::{Read, Write};
 use std::path::Path;
+use std::collections::HashMap;
 
 #[derive(Debug)]
 struct Pic {
@@ -35,42 +36,81 @@ pub fn download(params: &Params) {
         fatal!("{} is not a dir", dir.to_string_lossy());
     }
 
-    let pics;
-    match get_pics(&resolution, sfw) {
-        Ok(ret) => pics = ret,
-        Err(e) => panic!("main error {}", e),
+    let mut pics:HashMap<String, Vec<Pic>> = HashMap::new();
+    let mut pic_count:usize = 0;
+    for i in resolution.iter() {
+        match get_pics(i, sfw) {
+            Ok(ret) => {
+                pic_count += ret.len();
+                pics.insert(i.to_owned(), ret);
+            },
+            Err(e) => panic!("main error {}", e),
+        }
     }
-    println!("已爬取{}张壁纸", pics.len());
 
-    if pics.len() > 0 {
+    println!("已爬取{}张壁纸", pic_count);
+
+    if pic_count > 0 {
         if empty_dir {
-            //del previous files
+            //del previous files or dirs
             for entry in dir.read_dir().expect(&format!("{} can't read", params.dir)) {
                 if let Ok(entry) = entry {
-                    if let Err(_e) = remove_file(entry.path()){
-                        fatal!("{} is failed remove",entry.path().to_string_lossy());
+                    match entry.file_type() {
+                        Ok(t) => {
+                            if t.is_dir() {
+                                if let Err(e) = remove_dir_all(entry.path()){
+                                    if e.kind() != std::io::ErrorKind::Other && 
+                                    e.kind() != std::io::ErrorKind::NotFound
+                                    {
+                                        fatal!("{} is failed remove:{:?}",&params.dir, e);
+                                    }
+                                }
+                            } else {
+                                if let Err(e) = remove_file(entry.path()){
+                                    if e.kind() != std::io::ErrorKind::Other &&
+                                    e.kind() != std::io::ErrorKind::NotFound
+                                    {
+                                        fatal!("{} is failed remove:{:?}",entry.path().to_string_lossy(), e);
+                                    }
+                                }
+                            }
+                        },
+                        Err(e) => {
+                            fatal!("Getting file types error:{:?}", e);
+                        }
                     }
+
                 }
             }
         }
     }
 
-    for pic in pics.iter() {
-        let file_name = format!("{}{}", params.dir, pic.filename);
-        let path = Path::new(&file_name);
-
-        let mut file = match File::create(path) {
-            Err(why) => {
-                fatal!("couldn't create {}: {}", file_name, why.to_string());
+    for (r, p) in pics.iter() {
+        let pic_dir = format!("{}{}", params.dir, r);
+        match create_dir(&pic_dir) {
+            Ok(()) => {
+                for pic in p.iter() {
+                    let file_name = format!("{}/{}", &pic_dir, pic.filename);
+                    let path = Path::new(&file_name);
+            
+                    let mut file = match File::create(path) {
+                        Err(why) => {
+                            fatal!("couldn't create {}: {}", file_name, why.to_string());
+                        },
+                        Ok(file) => file,
+                    };
+            
+                    match file.write_all(&pic.body) {
+                        Err(why) => {
+                            fatal!("couldn't write to {}:{}", file_name, why.to_string());
+                        },
+                        Ok(_) => {}
+                    }
+                }
             },
-            Ok(file) => file,
-        };
-
-        match file.write_all(&pic.body) {
-            Err(why) => {
-                fatal!("couldn't write to {}:{}", file_name, why.to_string());
-            },
-            Ok(_) => {}
+            Err(e) => {
+                fatal!("Couldn't create dir:{:?}", e);
+            }
         }
     }
 }
@@ -83,6 +123,7 @@ fn get_pics(resolution: &str, sfw: bool) -> Result<Vec<Pic>, Box<dyn Error>> {
         purity = 100;
     }
 
+    let client = reqwest::Client::new();
     let url = format!(
         "{}{}{}{}{}{}{}",
         "https://wallhaven.cc/search?categories=",
@@ -93,7 +134,6 @@ fn get_pics(resolution: &str, sfw: bool) -> Result<Vec<Pic>, Box<dyn Error>> {
         resolution,
         "&sorting=random&order=desc"
     );
-    let client = reqwest::Client::new();
     let mut res = client.get(&url).send().expect("an error");
     let mut body = "".to_string();
 

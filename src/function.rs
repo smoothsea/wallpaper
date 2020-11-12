@@ -9,10 +9,10 @@ pub fn get_resolution()->Result<Vec<String>, Box<dyn Error>> {
         .arg("xrandr|grep \\*|awk '{print $1}'")
         .output()?.stdout;
     let output = String::from_utf8(ret)?;
-    let resolutions = output.split("\n").collect();
-    println!("{:?}", resolutions);
+    let resolutions = output.split("\n").collect::<Vec<&str>>();
+    let ret = resolutions.iter().filter(|x| x!=&&"").map(|x| x.to_string()).collect::<Vec<String>>();
 
-    Ok(vec!["xxxx".to_string()])
+    Ok(ret)
 }
 
 pub fn check_application(app: &str) {
