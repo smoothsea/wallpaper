@@ -28,7 +28,7 @@ pub struct Params {
     video_file: Option<String>,
     video_compress_dir: Option<String>,
     download_empty: bool,
-    download_resolution: Option<Vec<String>>,
+    resolution: Option<Vec<String>>,
     download_sfw: bool
 }
 
@@ -40,7 +40,7 @@ impl Params {
         is_download: bool,
         video_compress_dir: Option<String>,
         download_empty: bool,
-        download_resolution: Option<Vec<String>>,
+        resolution: Option<Vec<String>>,
         download_sfw: bool
     ) -> Params {
         Params {
@@ -50,7 +50,7 @@ impl Params {
             video_file,
             video_compress_dir,
             download_empty,
-            download_resolution,
+            resolution,
             download_sfw
         }
     }
@@ -125,12 +125,27 @@ fn video(params: &Params) {
 
 fn image(params: &Params) {
     let ten_millis = time::Duration::from_millis(60000);
-    let dir = &params.dir;
-    if let Err(_e) = fs::read_dir(&dir) {
-        fatal!("目录{}不存在或有权限问题", &dir);
+    let mut dir:Vec<String> = vec!();
+    let resolutions = params.resolution.clone();
+    for r in resolutions.unwrap().iter() {
+        let resolution_dir = format!("{}{}", &params.dir, r);
+        if let Ok(_) = fs::read_dir(&resolution_dir) {
+            dir.push(resolution_dir);
+        } else {
+            // default dir
+            let default_dir = format!("{}", &params.dir);
+            if let Err(_e) = fs::read_dir(&default_dir) {
+                fatal!("目录{}不存在或有权限问题", &default_dir);
+            } else {
+                dir.push(default_dir);
+            }
+        }
     }
 
-    let command = format!("feh --bg-scale --randomize {}", params.dir);
+    let mut command = "feh --bg-scale ".to_string();
+    for d in dir.iter() {
+        command = format!("{} --randomize {} ", command, d);
+    }
     Command::new("sh")
         .arg("-c")
         .arg(command)
@@ -223,7 +238,7 @@ fn get_params() -> Result<Params, Box<dyn Error>> {
     default_dir.push_str("/.wallpaper/");
     let mut download_empty = false;
     let mut download_sfw = false;
-    let mut download_resolution = None;
+    let mut download_resolution = Some(get_resolution().unwrap());
     let mut dir;
     if is_download {
         download_empty = matches.subcommand_matches("download")
@@ -232,18 +247,16 @@ fn get_params() -> Result<Params, Box<dyn Error>> {
         download_sfw = matches.subcommand_matches("download")
                         .unwrap()
                         .is_present("sfw");
-        download_resolution =
-            match matches
-                .subcommand_matches("download")
-                .unwrap()
-                .value_of("resolution") {
-                Some(r) => {
-                    Some(vec![r.to_owned()])
-                },
-                None => {
-                    Some(get_resolution().unwrap())
-                }
-            };
+
+        match matches
+            .subcommand_matches("download")
+            .unwrap()
+            .value_of("resolution") {
+            Some(r) => {
+                download_resolution = Some(vec![r.to_owned()])
+            },
+            None => {},
+        };
 
         dir = matches.subcommand_matches("download")
         .unwrap()
@@ -292,7 +305,7 @@ fn check_dependency(params: &Params) {
     let mut dependencies: Vec<&str> = vec![];
 
     if !params.is_download {
-        dependencies.append(&mut vec!["feh"]);
+        dependencies.append(&mut vec!["feh -h"]);
     }
 
     if params.is_video {

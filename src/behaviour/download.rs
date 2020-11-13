@@ -25,7 +25,7 @@ impl Pic {
 
 pub fn download(params: &Params) {
     let resolution = params
-        .download_resolution
+        .resolution
         .clone()
         .expect("下载图片分辨率错误");
     let empty_dir = params.download_empty;
@@ -89,28 +89,37 @@ pub fn download(params: &Params) {
         let pic_dir = format!("{}{}", params.dir, r);
         match create_dir(&pic_dir) {
             Ok(()) => {
-                for pic in p.iter() {
-                    let file_name = format!("{}/{}", &pic_dir, pic.filename);
-                    let path = Path::new(&file_name);
-            
-                    let mut file = match File::create(path) {
-                        Err(why) => {
-                            fatal!("couldn't create {}: {}", file_name, why.to_string());
-                        },
-                        Ok(file) => file,
-                    };
-            
-                    match file.write_all(&pic.body) {
-                        Err(why) => {
-                            fatal!("couldn't write to {}:{}", file_name, why.to_string());
-                        },
-                        Ok(_) => {}
-                    }
-                }
+                save_pics(p, &pic_dir);
             },
             Err(e) => {
-                fatal!("Couldn't create dir:{:?}", e);
+                match e.kind() {
+                    std::io::ErrorKind::AlreadyExists => {
+                        save_pics(p, &pic_dir);
+                    },
+                    _ => {fatal!("Couldn't create dir:{:?}", e);},
+                }
             }
+        }
+    }
+}
+
+fn save_pics(pics: &Vec<Pic>, pic_dir: &str) {
+    for pic in pics.iter() {
+        let file_name = format!("{}/{}", pic_dir, pic.filename);
+        let path = Path::new(&file_name);
+
+        let mut file = match File::create(path) {
+            Err(why) => {
+                fatal!("couldn't create {}: {}", file_name, why.to_string());
+            },
+            Ok(file) => file,
+        };
+
+        match file.write_all(&pic.body) {
+            Err(why) => {
+                fatal!("couldn't write to {}:{}", file_name, why.to_string());
+            },
+            Ok(_) => {}
         }
     }
 }
