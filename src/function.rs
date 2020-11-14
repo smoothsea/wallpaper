@@ -21,10 +21,15 @@ pub fn get_resolution() -> Result<Vec<String>, Box<dyn Error>> {
 }
 
 pub fn check_application(app: &str) {
-    
-    match Command::new("sh")
-        .arg("-c")
-        .arg(app)
+    let slice = app.split(" ").collect::<Vec<&str>>();
+    let mut iter = slice.iter();
+    let app = iter.next().unwrap();
+
+    let mut command = Command::new(app);
+    for p in iter {
+        command.arg(p);   
+    }
+    match command
         .stdout(Stdio::null())
         .stderr(Stdio::null())
         .spawn()
