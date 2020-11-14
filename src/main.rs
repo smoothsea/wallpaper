@@ -6,6 +6,7 @@ use rand::{Rng};
 use std::env;
 use std::error::Error;
 use std::process::{Command};
+use std::thread::{spawn};
 use std::{fs, thread, time};
 use function::{get_resolution, check_application};
 
@@ -29,7 +30,8 @@ pub struct Params {
     video_compress_dir: Option<String>,
     download_empty: bool,
     resolution: Option<Vec<String>>,
-    download_sfw: bool
+    download_sfw: bool,
+    only_download: bool
 }
 
 impl Params {
@@ -41,7 +43,8 @@ impl Params {
         video_compress_dir: Option<String>,
         download_empty: bool,
         resolution: Option<Vec<String>>,
-        download_sfw: bool
+        download_sfw: bool,
+        only_download: bool
     ) -> Params {
         Params {
             dir,
@@ -51,7 +54,8 @@ impl Params {
             video_compress_dir,
             download_empty,
             resolution,
-            download_sfw
+            download_sfw,
+            only_download
         }
     }
 }
@@ -68,8 +72,15 @@ fn main() {
     handle_exit(params.clone());
 
     if params.is_download {
-        download(&params);
-        std::process::exit(1);
+        let params_c = params.clone();
+        let handle = spawn( move || {
+            download(&params_c) }
+        );
+
+        if params.only_download {
+            handle.join().unwrap();
+            std::process::exit(1);
+        }
     }
 
     loop {
@@ -85,7 +96,7 @@ fn video(params: &Params) {
     let interval = time::Duration::from_millis(1);
     let dir = params.video_compress_dir.clone().unwrap();
     fs::create_dir(&dir).unwrap();
-    println!("开始转换视频...");
+    println!("Start processing video files...");
     Command::new("ffmpeg")
         .arg("-y")
         .arg("-ss")
@@ -102,6 +113,7 @@ fn video(params: &Params) {
         .collect();
     v.sort_by_key(|dir| dir.path());
     let count = v.len();
+    println!("Ok");
 
     let mut i = 0;
     while i < count {
@@ -134,8 +146,8 @@ fn image(params: &Params) {
         } else {
             // default dir
             let default_dir = format!("{}", &params.dir);
-            if let Err(_e) = fs::read_dir(&default_dir) {
-                fatal!("目录{}不存在或有权限问题", &default_dir);
+            if let Err(e) = fs::read_dir(&default_dir) {
+                fatal!("Directory {} takes error:{}", &default_dir, e);
             } else {
                 dir.push(default_dir);
             }
@@ -156,56 +168,61 @@ fn image(params: &Params) {
 }
 
 fn get_params() -> Result<Params, Box<dyn Error>> {
-    let matches = App::new("壁纸管理")
+    let matches = App::new("Wallpaper")
         .version("1.0")
-        .help_message("帮助").version_message("版本信息")
+        .help_message("help").version_message("version")
         .author("smoothsea@yeah.net")
-        .about("自动切换，下载壁纸。可以设置视频为壁纸")
+        .about("Manage wallpapers")
         .arg(
             Arg::with_name("directory")
                 .short("d")
                 .long("directory")
-                .help("壁纸文件夹")
+                .help("Wallpaper folder")
                 .takes_value(true),
         )
         .subcommand(
-            SubCommand::with_name("video").help_message("帮助").version_message("版本信息")
-            .about("设置视频为壁纸").arg(
+            SubCommand::with_name("video").help_message("help").version_message("version")
+            .about("Setting video as dynamic wallpaper").arg(
                 Arg::with_name("file")
                     .short("f")
                     .long("file")
-                    .help("视频地址")
+                    .help("Video path,video needs to be .mp4 suffix")
                     .validator(is_mp4)
                     .required(true)
                     .takes_value(true),
             ),
         )
         .subcommand(
-            SubCommand::with_name("download").help_message("帮助").version_message("版本信息")
-            .about("下载壁纸").arg(
+            SubCommand::with_name("download").help_message("help").version_message("version")
+            .about("Downloading wallpapers").arg(
                 Arg::with_name("empty")
                 .short("e")
                 .long("empty")
-                .help("清空壁纸目录")
+                .help("Empting floder")
                 .empty_values(true),
             ).arg(
                 Arg::with_name("resolution")
                 .short("r")
                 .long("resolution")
-                .help("设置下载壁纸分辨率")
+                .help("Setting resolution of the download wallpaper")
                 .takes_value(true)
                 .empty_values(false)
             ).arg(
                 Arg::with_name("sfw")
                 .long("sfw")
-                .help("适合上班")
+                .help("Safe for work")
                 .empty_values(true)
             ).arg(
                 Arg::with_name("directory")
                 .short("d")
                 .long("directory")
-                .help("壁纸文件夹")
+                .help("Dowanload wallpaper folder")
                 .takes_value(true)
+            ).arg(
+                Arg::with_name("only_download")
+                .long("only_download")
+                .help("Only download")
+                .empty_values(true)
             ),
         )
         .get_matches();
@@ -238,6 +255,7 @@ fn get_params() -> Result<Params, Box<dyn Error>> {
     default_dir.push_str("/.wallpaper/");
     let mut download_empty = false;
     let mut download_sfw = false;
+    let mut only_download = true;
     let mut download_resolution = Some(get_resolution().unwrap());
     let mut dir;
     if is_download {
@@ -247,6 +265,9 @@ fn get_params() -> Result<Params, Box<dyn Error>> {
         download_sfw = matches.subcommand_matches("download")
                         .unwrap()
                         .is_present("sfw");
+        only_download = matches.subcommand_matches("download")
+                        .unwrap()
+                        .is_present("only_download");
 
         match matches
             .subcommand_matches("download")
@@ -283,12 +304,13 @@ fn get_params() -> Result<Params, Box<dyn Error>> {
         download_empty,
         download_resolution,
         download_sfw,
+        only_download,
     ))
 }
 
 fn is_mp4(file: String) -> Result<(), String> {
     if !file.ends_with(".mp4") {
-        return Err(String::from("视频文件需要mp4格式"));
+        return Err(String::from("Video needs to be .mp4 suffix"));
     }
 
     match fs::OpenOptions::new().read(true).open(file) {
@@ -303,7 +325,6 @@ fn is_mp4(file: String) -> Result<(), String> {
 
 fn check_dependency(params: &Params) {
     let mut dependencies: Vec<&str> = vec![];
-
     if !params.is_download {
         dependencies.append(&mut vec!["feh -h"]);
     }

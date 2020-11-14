@@ -27,7 +27,7 @@ pub fn download(params: &Params) {
     let resolution = params
         .resolution
         .clone()
-        .expect("下载图片分辨率错误");
+        .expect("Resolutions are wrong");
     let empty_dir = params.download_empty;
     let sfw = params.download_sfw;
 
@@ -35,6 +35,8 @@ pub fn download(params: &Params) {
     if !dir.is_dir() {
         fatal!("{} is not a dir", dir.to_string_lossy());
     }
+
+    println!("Starting...");
 
     let mut pics:HashMap<String, Vec<Pic>> = HashMap::new();
     let mut pic_count:usize = 0;
@@ -44,16 +46,16 @@ pub fn download(params: &Params) {
                 pic_count += ret.len();
                 pics.insert(i.to_owned(), ret);
             },
-            Err(e) => panic!("main error {}", e),
+            Err(e) => panic!("Main error {}", e),
         }
     }
 
-    println!("已爬取{}张壁纸", pic_count);
+    println!("Get {} wallpapers", pic_count);
 
     if pic_count > 0 {
         if empty_dir {
             //del previous files or dirs
-            for entry in dir.read_dir().expect(&format!("{} can't read", params.dir)) {
+            for entry in dir.read_dir().expect(&format!("Directory {} can't read", params.dir)) {
                 if let Ok(entry) = entry {
                     match entry.file_type() {
                         Ok(t) => {
@@ -62,7 +64,7 @@ pub fn download(params: &Params) {
                                     if e.kind() != std::io::ErrorKind::Other && 
                                     e.kind() != std::io::ErrorKind::NotFound
                                     {
-                                        fatal!("{} is failed remove:{:?}",&params.dir, e);
+                                        fatal!("Directory {} is failed remove:{:?}",&params.dir, e);
                                     }
                                 }
                             } else {
@@ -70,7 +72,7 @@ pub fn download(params: &Params) {
                                     if e.kind() != std::io::ErrorKind::Other &&
                                     e.kind() != std::io::ErrorKind::NotFound
                                     {
-                                        fatal!("{} is failed remove:{:?}",entry.path().to_string_lossy(), e);
+                                        fatal!("File {} is failed remove:{:?}",entry.path().to_string_lossy(), e);
                                     }
                                 }
                             }
@@ -110,14 +112,14 @@ fn save_pics(pics: &Vec<Pic>, pic_dir: &str) {
 
         let mut file = match File::create(path) {
             Err(why) => {
-                fatal!("couldn't create {}: {}", file_name, why.to_string());
+                fatal!("Couldn't create {}: {}", file_name, why.to_string());
             },
             Ok(file) => file,
         };
 
         match file.write_all(&pic.body) {
             Err(why) => {
-                fatal!("couldn't write to {}:{}", file_name, why.to_string());
+                fatal!("Couldn't write to {}:{}", file_name, why.to_string());
             },
             Ok(_) => {}
         }
