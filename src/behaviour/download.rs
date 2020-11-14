@@ -32,14 +32,29 @@ pub fn download(params: &Params) {
     let sfw = params.download_sfw;
 
     let dir = Path::new(&params.dir);
-    if !dir.is_dir() {
-        fatal!("{} is not a dir", dir.to_string_lossy());
-    }
+    let metadata = dir.metadata().unwrap();
+    if !metadata.is_dir() {
+        fatal!("{} is not a dir", &params.dir);
+    }; 
 
-    println!("Starting...");
+    //create picture dirs
+    for i in resolution.iter() {
+        let pic_dir = format!("{}{}", params.dir, i);
+        match create_dir(&pic_dir) {
+            Ok(()) => {},
+            Err(e) => {
+                match e.kind() {
+                    std::io::ErrorKind::AlreadyExists => {},
+                    _ => {fatal!("Couldn't create dir {}:{:?}", pic_dir, e);},
+                }
+            }
+        }
+    }
 
     let mut pics:HashMap<String, Vec<Pic>> = HashMap::new();
     let mut pic_count:usize = 0;
+    //get pictures
+    println!("Starting...");
     for i in resolution.iter() {
         match get_pics(i, sfw) {
             Ok(ret) => {
@@ -49,8 +64,7 @@ pub fn download(params: &Params) {
             Err(e) => panic!("Main error {}", e),
         }
     }
-
-    println!("Get {} wallpapers", pic_count);
+    println!("Gets {} wallpapers", pic_count);
 
     if pic_count > 0 {
         if empty_dir {
@@ -78,7 +92,7 @@ pub fn download(params: &Params) {
                             }
                         },
                         Err(e) => {
-                            fatal!("Getting file types error:{:?}", e);
+                            fatal!("Get file types error:{:?}", e);
                         }
                     }
 
@@ -89,19 +103,7 @@ pub fn download(params: &Params) {
 
     for (r, p) in pics.iter() {
         let pic_dir = format!("{}{}", params.dir, r);
-        match create_dir(&pic_dir) {
-            Ok(()) => {
-                save_pics(p, &pic_dir);
-            },
-            Err(e) => {
-                match e.kind() {
-                    std::io::ErrorKind::AlreadyExists => {
-                        save_pics(p, &pic_dir);
-                    },
-                    _ => {fatal!("Couldn't create dir:{:?}", e);},
-                }
-            }
-        }
+        save_pics(p, &pic_dir);
     }
 }
 

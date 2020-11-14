@@ -31,7 +31,8 @@ pub struct Params {
     download_empty: bool,
     resolution: Option<Vec<String>>,
     download_sfw: bool,
-    only_download: bool
+    only_download: bool,
+    interval: i64,
 }
 
 impl Params {
@@ -44,7 +45,8 @@ impl Params {
         download_empty: bool,
         resolution: Option<Vec<String>>,
         download_sfw: bool,
-        only_download: bool
+        only_download: bool,
+        interval: i64,
     ) -> Params {
         Params {
             dir,
@@ -55,7 +57,8 @@ impl Params {
             download_empty,
             resolution,
             download_sfw,
-            only_download
+            only_download,
+            interval,
         }
     }
 }
@@ -68,7 +71,6 @@ fn main() {
         }
     };
     check_dependency(&params);
-
     handle_exit(params.clone());
 
     if params.is_download {
@@ -136,7 +138,7 @@ fn video(params: &Params) {
 }
 
 fn image(params: &Params) {
-    let ten_millis = time::Duration::from_millis(60000);
+    let ten_millis = time::Duration::from_millis((params.interval * 1000) as u64);
     let mut dir:Vec<String> = vec!();
     let resolutions = params.resolution.clone();
     for r in resolutions.unwrap().iter() {
@@ -180,9 +182,24 @@ fn get_params() -> Result<Params, Box<dyn Error>> {
                 .help("Wallpaper folder")
                 .takes_value(true),
         )
+        .arg(
+            Arg::with_name("interval")
+                .short("i")
+                .long("interval")
+                .validator(|v| {
+                    match v.parse::<i32>() {
+                        Ok(_) => {return Ok(())},
+                        Err(_) => {
+                            return Err("Please enter the correct number of interval seconds".to_string());
+                        }
+                    }
+                })
+                .help("Interval second to switch wallpapers,default is 60")
+                .takes_value(true),
+        )
         .subcommand(
             SubCommand::with_name("video").help_message("help").version_message("version")
-            .about("Setting video as dynamic wallpaper").arg(
+            .about("Set video as dynamic wallpaper").arg(
                 Arg::with_name("file")
                     .short("f")
                     .long("file")
@@ -194,17 +211,17 @@ fn get_params() -> Result<Params, Box<dyn Error>> {
         )
         .subcommand(
             SubCommand::with_name("download").help_message("help").version_message("version")
-            .about("Downloading wallpapers").arg(
+            .about("Download wallpapers").arg(
                 Arg::with_name("empty")
                 .short("e")
                 .long("empty")
-                .help("Empting floder")
+                .help("Empty floder")
                 .empty_values(true),
             ).arg(
                 Arg::with_name("resolution")
                 .short("r")
                 .long("resolution")
-                .help("Setting resolution of the download wallpaper")
+                .help("Set resolution of the download wallpaper")
                 .takes_value(true)
                 .empty_values(false)
             ).arg(
@@ -212,12 +229,6 @@ fn get_params() -> Result<Params, Box<dyn Error>> {
                 .long("sfw")
                 .help("Safe for work")
                 .empty_values(true)
-            ).arg(
-                Arg::with_name("directory")
-                .short("d")
-                .long("directory")
-                .help("Dowanload wallpaper folder")
-                .takes_value(true)
             ).arg(
                 Arg::with_name("only_download")
                 .long("only_download")
@@ -257,7 +268,6 @@ fn get_params() -> Result<Params, Box<dyn Error>> {
     let mut download_sfw = false;
     let mut only_download = true;
     let mut download_resolution = Some(get_resolution().unwrap());
-    let mut dir;
     if is_download {
         download_empty = matches.subcommand_matches("download")
                         .unwrap()
@@ -278,18 +288,16 @@ fn get_params() -> Result<Params, Box<dyn Error>> {
             },
             None => {},
         };
-
-        dir = matches.subcommand_matches("download")
-        .unwrap()
+    } 
+    
+    let interval = matches
+        .value_of("interval")
+        .unwrap_or("60")
+        .to_owned().parse::<i64>().unwrap();
+    let mut dir = matches
         .value_of("directory")
         .unwrap_or(&default_dir)
         .to_owned();
-    } else {
-       dir = matches
-        .value_of("directory")
-        .unwrap_or(&default_dir)
-        .to_owned();
-    }
     if !dir.ends_with("/") {
         dir.push_str("/");
     }
@@ -305,6 +313,7 @@ fn get_params() -> Result<Params, Box<dyn Error>> {
         download_resolution,
         download_sfw,
         only_download,
+        interval,
     ))
 }
 
