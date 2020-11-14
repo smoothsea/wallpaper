@@ -37,6 +37,39 @@ pub fn download(params: &Params) {
         fatal!("{} is not a dir", &params.dir);
     }; 
 
+    if empty_dir {
+        //del previous files or dirs
+        for entry in dir.read_dir().expect(&format!("Directory {} can't read", params.dir)) {
+            if let Ok(entry) = entry {
+                match entry.file_type() {
+                    Ok(t) => {
+                        if t.is_dir() {
+                            if let Err(e) = remove_dir_all(entry.path()){
+                                if e.kind() != std::io::ErrorKind::Other && 
+                                e.kind() != std::io::ErrorKind::NotFound
+                                {
+                                    fatal!("Directory {} is failed remove:{:?}",&params.dir, e);
+                                }
+                            }
+                        } else {
+                            if let Err(e) = remove_file(entry.path()){
+                                if e.kind() != std::io::ErrorKind::Other &&
+                                e.kind() != std::io::ErrorKind::NotFound
+                                {
+                                    fatal!("File {} is failed remove:{:?}",entry.path().to_string_lossy(), e);
+                                }
+                            }
+                        }
+                    },
+                    Err(e) => {
+                        fatal!("Get file types error:{:?}", e);
+                    }
+                }
+
+            }
+        }
+    }
+
     //create picture dirs
     for i in resolution.iter() {
         let pic_dir = format!("{}{}", params.dir, i);
@@ -66,40 +99,7 @@ pub fn download(params: &Params) {
     }
     println!("Gets {} wallpapers", pic_count);
 
-    if pic_count > 0 {
-        if empty_dir {
-            //del previous files or dirs
-            for entry in dir.read_dir().expect(&format!("Directory {} can't read", params.dir)) {
-                if let Ok(entry) = entry {
-                    match entry.file_type() {
-                        Ok(t) => {
-                            if t.is_dir() {
-                                if let Err(e) = remove_dir_all(entry.path()){
-                                    if e.kind() != std::io::ErrorKind::Other && 
-                                    e.kind() != std::io::ErrorKind::NotFound
-                                    {
-                                        fatal!("Directory {} is failed remove:{:?}",&params.dir, e);
-                                    }
-                                }
-                            } else {
-                                if let Err(e) = remove_file(entry.path()){
-                                    if e.kind() != std::io::ErrorKind::Other &&
-                                    e.kind() != std::io::ErrorKind::NotFound
-                                    {
-                                        fatal!("File {} is failed remove:{:?}",entry.path().to_string_lossy(), e);
-                                    }
-                                }
-                            }
-                        },
-                        Err(e) => {
-                            fatal!("Get file types error:{:?}", e);
-                        }
-                    }
 
-                }
-            }
-        }
-    }
 
     for (r, p) in pics.iter() {
         let pic_dir = format!("{}{}", params.dir, r);
