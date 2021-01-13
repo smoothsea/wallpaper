@@ -38,7 +38,7 @@ pub fn download(params: &Params) {
             metadata = m;
         },
         Err(e) => {
-            fatal!("{}", e);       
+            fatal!("{}:{}", &params.dir, e);       
         }
     }
 

@@ -10,12 +10,17 @@ pub fn get_resolution() -> Result<Vec<String>, Box<dyn Error>> {
         .output()?
         .stdout;
     let output = String::from_utf8(ret)?;
+    
     let resolutions = output.split("\n").collect::<Vec<&str>>();
     let ret = resolutions
         .iter()
-        .filter(|x| x != &&"")
+        .filter(|x| x.trim() != "")
         .map(|x| x.to_string())
         .collect::<Vec<String>>();
+
+    if ret.len() == 0 {
+        Err("Get resolutions error")?
+    }
 
     Ok(ret)
 }

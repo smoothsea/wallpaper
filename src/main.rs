@@ -267,7 +267,11 @@ fn get_params() -> Result<Params, Box<dyn Error>> {
     let mut download_empty = false;
     let mut download_sfw = false;
     let mut only_download = true;
-    let mut download_resolution = Some(get_resolution().unwrap());
+    let mut resolution = None;
+    if let Ok(r) = get_resolution() {
+        resolution = Some(r);
+    }
+
     if is_download {
         download_empty = matches.subcommand_matches("download")
                         .unwrap()
@@ -284,7 +288,7 @@ fn get_params() -> Result<Params, Box<dyn Error>> {
             .unwrap()
             .value_of("resolution") {
             Some(r) => {
-                download_resolution = Some(vec![r.to_owned()])
+                resolution = Some(vec![r.to_owned()])
             },
             None => {},
         };
@@ -302,6 +306,9 @@ fn get_params() -> Result<Params, Box<dyn Error>> {
         dir.push_str("/");
     }
 
+    if !is_video && resolution == None {
+        fatal!("Get resolution error.Please specify the resolution.");        
+    }
 
     Ok(Params::new(
         dir,
@@ -310,7 +317,7 @@ fn get_params() -> Result<Params, Box<dyn Error>> {
         is_download,
         video_compress_dir,
         download_empty,
-        download_resolution,
+        resolution,
         download_sfw,
         only_download,
         interval,
