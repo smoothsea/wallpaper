@@ -32,7 +32,16 @@ pub fn download(params: &Params) {
     let sfw = params.download_sfw;
 
     let dir = Path::new(&params.dir);
-    let metadata = dir.metadata().unwrap();
+    let metadata;
+    match dir.metadata() {
+        Ok(m) => {
+            metadata = m;
+        },
+        Err(e) => {
+            fatal!("{}", e);       
+        }
+    }
+
     if !metadata.is_dir() {
         fatal!("{} is not a dir", &params.dir);
     }; 

@@ -334,13 +334,13 @@ fn is_mp4(file: String) -> Result<(), String> {
 
 fn check_dependency(params: &Params) {
     let mut dependencies: Vec<&str> = vec![];
-    if !params.is_download {
-        dependencies.append(&mut vec!["feh -h"]);
+    if !params.only_download {
+        dependencies.append(&mut vec!["feh -h", "xrandr"]);
     }
 
     if params.is_video {
         dependencies.append(&mut vec![
-            "ffmpeg", "convert", "xrandr", "xdg-open", "bash", "sed",
+            "ffmpeg", "convert", "xdg-open", "bash", "sed",
         ]);
     }
 
