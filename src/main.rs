@@ -291,6 +291,7 @@ fn get_params() -> Result<Params, Box<dyn Error>> {
     let mut download_sfw = false;
     let mut only_download = true;
     let mut resolution = None;
+    let mut proxy = None;
     if let Ok(r) = get_resolution() {
         resolution = Some(r);
     }
@@ -305,6 +306,9 @@ fn get_params() -> Result<Params, Box<dyn Error>> {
         only_download = matches.subcommand_matches("download")
                         .unwrap()
                         .is_present("only_download");
+        
+        proxy = matches.subcommand_matches("download").unwrap()
+                        .value_of("proxy").map(|v| v.to_owned());
 
         match matches
             .subcommand_matches("download")
@@ -332,9 +336,6 @@ fn get_params() -> Result<Params, Box<dyn Error>> {
     if !is_video && resolution == None {
         fatal!("Get resolution error.Please specify the resolution.");        
     }
-
-    let proxy = matches.subcommand_matches("download").unwrap()
-    .value_of("proxy").map(|v| v.to_owned());
 
     Ok(Params::new(
         dir,
