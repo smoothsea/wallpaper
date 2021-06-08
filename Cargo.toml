@@ -15,3 +15,6 @@ regex = "1"
 
 [profile.release]
 opt-level = 'z'
+
+[target.'cfg(unix)'.dependencies]
+nix = "0.18"

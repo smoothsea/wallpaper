@@ -1,4 +1,5 @@
 mod behaviour;
+mod tasker;
 mod function;
 
 use clap::{App, Arg, SubCommand};
@@ -11,6 +12,7 @@ use std::{fs, thread, time};
 use function::{get_resolution, check_application};
 
 use crate::behaviour::download::{download};
+use crate::tasker::shutdown::ShutdownSignal;
 
 #[macro_export]
 macro_rules! fatal {
@@ -33,6 +35,7 @@ pub struct Params {
     download_sfw: bool,
     only_download: bool,
     interval: i64,
+    proxy: Option<String>,
 }
 
 impl Params {
@@ -47,6 +50,7 @@ impl Params {
         download_sfw: bool,
         only_download: bool,
         interval: i64,
+        proxy: Option<String>,
     ) -> Params {
         Params {
             dir,
@@ -59,6 +63,7 @@ impl Params {
             download_sfw,
             only_download,
             interval,
+            proxy,
         }
     }
 }
@@ -71,7 +76,10 @@ fn main() {
         }
     };
     check_dependency(&params);
-    handle_exit(params.clone());
+
+    let signal = ShutdownSignal::new();
+    let params_c = params.clone();
+
 
     if params.is_download {
         let params_c = params.clone();
@@ -85,13 +93,22 @@ fn main() {
         }
     }
 
-    loop {
-        if params.is_video {
-            video(&params);
-        } else {
-            image(&params);
+    spawn(move || {
+        loop {
+            if params.is_video {
+                video(&params);
+            } else {
+                image(&params);
+            }
         }
-    }
+    });
+
+    signal.at_exit(move |_| {
+        if params_c.is_video {
+            fs::remove_dir_all(params_c.video_compress_dir.clone().unwrap()).unwrap();
+        }
+        std::process::abort();
+   });
 }
 
 fn video(params: &Params) {
@@ -234,6 +251,12 @@ fn get_params() -> Result<Params, Box<dyn Error>> {
                 .long("only_download")
                 .help("Only download")
                 .empty_values(true)
+            ).arg(
+                Arg::with_name("proxy")
+                .short("p")
+                .long("proxy")
+                .help("Specify the HTTP proxy server to use for requests")
+                .takes_value(true),
             ),
         )
         .get_matches();
@@ -310,6 +333,9 @@ fn get_params() -> Result<Params, Box<dyn Error>> {
         fatal!("Get resolution error.Please specify the resolution.");        
     }
 
+    let proxy = matches.subcommand_matches("download").unwrap()
+    .value_of("proxy").map(|v| v.to_owned());
+
     Ok(Params::new(
         dir,
         is_video,
@@ -321,6 +347,7 @@ fn get_params() -> Result<Params, Box<dyn Error>> {
         download_sfw,
         only_download,
         interval,
+        proxy,
     ))
 }
 
@@ -369,14 +396,4 @@ fn gen_rand_string() -> String {
             CHARSET[idx] as char
         })
         .collect()
-}
-
-fn handle_exit(params: Params) {
-     ctrlc::set_handler(move || {
-         if params.is_video {
-             fs::remove_dir_all(params.video_compress_dir.clone().unwrap()).unwrap();
-         }
-         std::process::abort();
-     })
-     .expect("Error setting Ctrl-C handler");
 }

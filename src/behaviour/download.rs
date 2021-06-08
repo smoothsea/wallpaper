@@ -98,7 +98,7 @@ pub fn download(params: &Params) {
     //get pictures
     println!("Starting...");
     for i in resolution.iter() {
-        match get_pics(i, sfw) {
+        match get_pics(i, sfw, &params.proxy) {
             Ok(ret) => {
                 pic_count += ret.len();
                 pics.insert(i.to_owned(), ret);
@@ -137,7 +137,32 @@ fn save_pics(pics: &Vec<Pic>, pic_dir: &str) {
     }
 }
 
-fn get_pics(resolution: &str, sfw: bool) -> Result<Vec<Pic>, Box<dyn Error>> {
+static mut SINGLETON_HTTP_CLIENT: Option<Singleton> = None;
+
+struct Singleton {
+    v: reqwest::Client,
+}
+
+impl Singleton {
+    fn new(proxy: & Option<String>) -> &Singleton {
+        unsafe {
+            match &SINGLETON_HTTP_CLIENT {
+                Some(r) => r,
+                None => {
+                    let mut client = reqwest::Client::builder();
+                    if let Some(p) = proxy {
+                        client = client.proxy(reqwest::Proxy::http(p).unwrap());
+                    }
+                    let client = client.build().unwrap();
+                    SINGLETON_HTTP_CLIENT = Some(Singleton{v: client});
+                    Singleton::new(proxy)
+                },
+            }
+        }
+    }
+}
+
+fn get_pics(resolution: &str, sfw: bool, proxy:& Option<String>) -> Result<Vec<Pic>, Box<dyn Error>> {
     let mut category = 111;
     let mut purity = 110;
     if sfw {
@@ -145,7 +170,7 @@ fn get_pics(resolution: &str, sfw: bool) -> Result<Vec<Pic>, Box<dyn Error>> {
         purity = 100;
     }
 
-    let client = reqwest::Client::new();
+    let client = &Singleton::new(proxy).v;
     let url = format!(
         "{}{}{}{}{}{}{}",
         "https://wallhaven.cc/search?categories=",
@@ -164,7 +189,7 @@ fn get_pics(resolution: &str, sfw: bool) -> Result<Vec<Pic>, Box<dyn Error>> {
     let re = Regex::new("class=\"preview\"\\s+href=\"(.*?)\"")?;
     let mut pics = Vec::new();
     for caps in re.captures_iter(&body) {
-        match get_pic_from_detail_page_url(&caps[1]) {
+        match get_pic_from_detail_page_url(&caps[1], proxy) {
             Ok(pic) => {
                 pics.push(pic);
             }
@@ -177,8 +202,8 @@ fn get_pics(resolution: &str, sfw: bool) -> Result<Vec<Pic>, Box<dyn Error>> {
     Ok(pics)
 }
 
-fn get_pic_from_detail_page_url(url: &str) -> Result<Pic, Box<dyn Error>> {
-    let client = reqwest::Client::new();
+fn get_pic_from_detail_page_url(url: &str, proxy:& Option<String>) -> Result<Pic, Box<dyn Error>> {
+    let client = &Singleton::new(proxy).v;
     let mut res = client.get(url).send()?;
     let mut body = "".to_string();
 
