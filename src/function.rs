@@ -1,6 +1,8 @@
 use crate::fatal;
 use std::error::Error;
 use std::process::{Command, Stdio};
+use std::fs::{read_dir};
+use rand::Rng;
 
 pub fn get_resolution() -> Result<Vec<String>, Box<dyn Error>> {
     check_application("xrandr");
@@ -48,4 +50,29 @@ pub fn check_application(app: &str) {
             }
         }
     }
+}
+
+pub fn get_random_file(dir: &str) -> String {
+    let mut pictures:Vec<String> = vec!();
+    let mut rand = dir.to_string();
+    match read_dir(dir) {
+        Ok(r) => {
+            for i in r {
+                if let Ok(file) = i {
+                    pictures.push(file.file_name().into_string().unwrap());
+                }
+            }
+        },
+        Err(_e) => {
+            return rand;
+        }
+    }
+    
+    if pictures.len() > 0 {
+        let mut rng = rand::thread_rng();
+        let rand_index = rng.gen_range(0, pictures.len());
+        rand = format!("{}{}{}", rand, "/", pictures.get(rand_index).unwrap().to_owned());
+    }
+    
+    rand
 }

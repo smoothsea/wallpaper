@@ -108,8 +108,6 @@ pub fn download(params: &Params) {
     }
     println!("Gets {} wallpapers", pic_count);
 
-
-
     for (r, p) in pics.iter() {
         let pic_dir = format!("{}{}", params.dir, r);
         save_pics(p, &pic_dir);

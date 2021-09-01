@@ -9,7 +9,7 @@ use std::error::Error;
 use std::process::{Command};
 use std::thread::{spawn};
 use std::{fs, thread, time};
-use function::{get_resolution, check_application};
+use function::{get_resolution, check_application, get_random_file};
 
 use crate::behaviour::download::{download};
 use crate::tasker::shutdown::ShutdownSignal;
@@ -156,26 +156,26 @@ fn video(params: &Params) {
 
 fn image(params: &Params) {
     let ten_millis = time::Duration::from_millis((params.interval * 1000) as u64);
-    let mut dir:Vec<String> = vec!();
+    let mut rand_images:Vec<String> = vec!();
     let resolutions = params.resolution.clone();
     for r in resolutions.unwrap().iter() {
         let resolution_dir = format!("{}{}", &params.dir, r);
         if let Ok(_) = fs::read_dir(&resolution_dir) {
-            dir.push(resolution_dir);
+            rand_images.push(get_random_file(&resolution_dir));
         } else {
             // default dir
             let default_dir = format!("{}", &params.dir);
             if let Err(e) = fs::read_dir(&default_dir) {
                 fatal!("Directory {} takes error:{}", &default_dir, e);
             } else {
-                dir.push(default_dir);
+                rand_images.push(get_random_file(&default_dir));
             }
         }
     }
 
     let mut command = "feh --bg-scale ".to_string();
-    for d in dir.iter() {
-        command = format!("{} --randomize {} ", command, d);
+    for d in rand_images.iter() {
+        command = format!("{} {} ", command, d);
     }
     Command::new("sh")
         .arg("-c")
