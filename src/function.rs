@@ -6,19 +6,15 @@ use rand::Rng;
 
 pub fn get_resolution() -> Result<Vec<String>, Box<dyn Error>> {
     check_application("xrandr");
+    // Feh says 'Cm xrandr --listmonitor to determine how Xinerama monitor IDs map to screens / monitors in your setup'.But that is not working in my device.
     let ret = Command::new("sh")
         .arg("-c")
-        .arg("xrandr|grep \\*|awk '{print $1}'")
+        .arg("xrandr --listactivemonitors|sed 1d|awk '{print $3}'|sed -E 's/^(.+)\\/.+x(.+?)\\/.+$/\\1x\\2/'")
         .output()?
         .stdout;
     let output = String::from_utf8(ret)?;
     
-    let resolutions = output.split("\n").collect::<Vec<&str>>();
-    let ret = resolutions
-        .iter()
-        .filter(|x| x.trim() != "")
-        .map(|x| x.to_string())
-        .collect::<Vec<String>>();
+    let ret = output.split("\n").filter(|x| x.trim() != "").map(|x| x.to_string()).collect::<Vec<String>>();
 
     if ret.len() == 0 {
         Err("Get resolutions error")?

@@ -213,6 +213,13 @@ fn get_params() -> Result<Params, Box<dyn Error>> {
                 })
                 .help("Interval second to switch wallpapers,default is 60")
                 .takes_value(true),
+        ).arg(
+            Arg::with_name("resolution")
+            .short("r")
+            .long("resolution")
+            .help("Set resolution for the downloading or wallpaper setting,Multiple resolutions are separated by commas")
+            .takes_value(true)
+            .empty_values(false)
         )
         .subcommand(
             SubCommand::with_name("video").help_message("help").version_message("version")
@@ -234,13 +241,6 @@ fn get_params() -> Result<Params, Box<dyn Error>> {
                 .long("empty")
                 .help("Empty floder")
                 .empty_values(true),
-            ).arg(
-                Arg::with_name("resolution")
-                .short("r")
-                .long("resolution")
-                .help("Set resolution of the download wallpaper")
-                .takes_value(true)
-                .empty_values(false)
             ).arg(
                 Arg::with_name("sfw")
                 .long("sfw")
@@ -296,6 +296,15 @@ fn get_params() -> Result<Params, Box<dyn Error>> {
         resolution = Some(r);
     }
 
+    match matches
+        .value_of("resolution") {
+        Some(r) => {
+            let r_v= r.split(",").map(|v| v.to_owned()).collect::<Vec<String>>();
+            resolution = Some(r_v)
+        },
+        None => {},
+    };
+
     if is_download {
         download_empty = matches.subcommand_matches("download")
                         .unwrap()
@@ -309,16 +318,6 @@ fn get_params() -> Result<Params, Box<dyn Error>> {
         
         proxy = matches.subcommand_matches("download").unwrap()
                         .value_of("proxy").map(|v| v.to_owned());
-
-        match matches
-            .subcommand_matches("download")
-            .unwrap()
-            .value_of("resolution") {
-            Some(r) => {
-                resolution = Some(vec![r.to_owned()])
-            },
-            None => {},
-        };
     } 
     
     let interval = matches
