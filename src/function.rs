@@ -3,6 +3,7 @@ use std::error::Error;
 use std::process::{Command, Stdio};
 use std::fs::{read_dir};
 use rand::Rng;
+use std::env;
 
 pub fn get_resolution() -> Result<Vec<String>, Box<dyn Error>> {
     check_application("xrandr");
@@ -71,4 +72,57 @@ pub fn get_random_file(dir: &str) -> String {
     }
     
     rand
+}
+
+pub trait De {
+    fn wallpaper_dependencies(&self) -> Vec<String>;
+
+    fn set_wallpaper(&self, wallpaper_paths: Vec<String>);
+}
+
+pub struct Wm();
+
+pub struct Gnome();
+
+impl De for Wm {
+    fn wallpaper_dependencies(&self) -> Vec<String> {
+        return vec!("feh -h".to_string());
+    }
+
+    fn set_wallpaper(&self, wallpaper_paths: Vec<String>) {
+        let mut command = "feh --bg-scale ".to_string();
+        for d in wallpaper_paths.iter() {
+            command = format!("{} {} ", command, d);
+        }
+        Command::new("sh")
+            .arg("-c")
+            .arg(command)
+            .output()
+            .expect("faild");
+    }
+}
+
+impl De for Gnome {
+    fn wallpaper_dependencies(&self) -> Vec<String> {
+        return vec!("gsettings".to_string());
+    }
+
+    fn set_wallpaper(&self, wallpaper_paths: Vec<String>) {
+        let command = format!("gsettings set org.gnome.desktop.background picture-uri file:///{}", wallpaper_paths.get(0).unwrap_or(&"".to_string()));
+        Command::new("sh")
+            .arg("-c")
+            .arg(command)
+            .output()
+            .expect("faild");
+    }
+}
+
+pub fn get_de() -> Box<dyn De> {
+    let de = &env::var("XDG_CURRENT_DESKTOP").unwrap_or("wm".to_string())[..];
+
+    if de == "ubuntu:GNOME" {
+        return Box::new(Gnome());
+    } else {
+        return Box::new(Wm());
+    }
 }

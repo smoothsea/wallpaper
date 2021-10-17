@@ -9,7 +9,7 @@ use std::error::Error;
 use std::process::{Command};
 use std::thread::{spawn};
 use std::{fs, thread, time};
-use function::{get_resolution, check_application, get_random_file};
+use function::{get_resolution, check_application, get_random_file, get_de};
 
 use crate::behaviour::download::{download};
 use crate::tasker::shutdown::ShutdownSignal;
@@ -135,16 +135,10 @@ fn video(params: &Params) {
     println!("Ok");
 
     let mut i = 0;
+    let de = get_de();
     while i < count {
         let pic_path = format!("{}", &v[i].path().display());
-        let mut command = "/usr/bin/feh --bg-scale ".to_string();
-        command.push_str(&pic_path);
-        Command::new("sh")
-            .arg("-c")
-            .arg(command)
-            .output()
-            .expect("faild");
-
+        de.set_wallpaper(vec!(pic_path));
         i += 1;
         if i == count - 1 {
             i = 0;
@@ -173,15 +167,8 @@ fn image(params: &Params) {
         }
     }
 
-    let mut command = "feh --bg-scale ".to_string();
-    for d in rand_images.iter() {
-        command = format!("{} {} ", command, d);
-    }
-    Command::new("sh")
-        .arg("-c")
-        .arg(command)
-        .output()
-        .expect("faild");
+    let de = get_de();
+    de.set_wallpaper(rand_images);
 
     thread::sleep(ten_millis);
 }
@@ -289,7 +276,7 @@ fn get_params() -> Result<Params, Box<dyn Error>> {
     default_dir.push_str("/.wallpaper/");
     let mut download_empty = false;
     let mut download_sfw = false;
-    let mut only_download = true;
+    let mut only_download = false;
     let mut resolution = None;
     let mut proxy = None;
     if let Ok(r) = get_resolution() {
@@ -368,8 +355,11 @@ fn is_mp4(file: String) -> Result<(), String> {
 
 fn check_dependency(params: &Params) {
     let mut dependencies: Vec<&str> = vec![];
+    let de = get_de();
+    let wallpaper_d = de.wallpaper_dependencies();
+
     if !params.only_download {
-        dependencies.append(&mut vec!["feh -h", "xrandr"]);
+        dependencies.append(&mut wallpaper_d.iter().map(|s| s as &str).collect::<Vec<&str>>());
     }
 
     if params.is_video {
