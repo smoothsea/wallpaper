@@ -3,11 +3,13 @@ mod tasker;
 mod function;
 
 use clap::{App, Arg, SubCommand};
-use rand::{Rng};
+use rand::Rng;
 use std::env;
+use std::path::Path;
 use std::error::Error;
-use std::process::{Command};
-use std::thread::{spawn};
+use std::io::ErrorKind;
+use std::process::Command;
+use std::thread::spawn;
 use std::{fs, thread, time};
 use function::{get_resolution, check_application, get_random_file, get_de};
 
@@ -322,6 +324,34 @@ fn get_params() -> Result<Params, Box<dyn Error>> {
     if !is_video && resolution == None {
         fatal!("Get resolution error.Please specify the resolution.");        
     }
+
+    // check dir
+    let path = Path::new(&dir);
+    let metadata;
+    match path.metadata() {
+        Ok(m) => {
+            metadata = m;
+        },
+        Err(e) => {
+            if e.kind() == ErrorKind::NotFound {
+                // Try to create a new directory
+                match std::fs::create_dir_all(path) {
+                    Ok(_r) => {
+                        metadata = path.metadata().unwrap();
+                    },
+                    Err(e) => {
+                        fatal!("{}:{}", &dir, e);
+                    },
+                }   
+            } else {
+                fatal!("{}:{}", &dir, e);       
+            }
+        }
+    }
+
+    if !metadata.is_dir() {
+        fatal!("{} is not a dir", &dir);
+    }; 
 
     Ok(Params::new(
         dir,

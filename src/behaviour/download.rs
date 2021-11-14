@@ -2,10 +2,10 @@ use crate::Params;
 use crate::fatal;
 use regex::Regex;
 use reqwest;
-use std::error::Error;
 use std::fs::*;
-use std::io::{Read, Write};
 use std::path::Path;
+use std::error::Error;
+use std::io::{Read, Write};
 use std::collections::HashMap;
 
 #[derive(Debug)]
@@ -32,20 +32,6 @@ pub fn download(params: &Params) {
     let sfw = params.download_sfw;
 
     let dir = Path::new(&params.dir);
-    let metadata;
-    match dir.metadata() {
-        Ok(m) => {
-            metadata = m;
-        },
-        Err(e) => {
-            fatal!("{}:{}", &params.dir, e);       
-        }
-    }
-
-    if !metadata.is_dir() {
-        fatal!("{} is not a dir", &params.dir);
-    }; 
-
     if empty_dir {
         //del previous files or dirs
         for entry in dir.read_dir().expect(&format!("Directory {} can't read", params.dir)) {
