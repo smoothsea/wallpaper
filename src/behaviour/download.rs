@@ -135,7 +135,7 @@ fn save_pics(pics: &Vec<Pic>, pic_dir: &str) {
 static mut SINGLETON_HTTP_CLIENT: Option<Singleton> = None;
 
 struct Singleton {
-    v: reqwest::Client,
+    v: reqwest::blocking::Client,
 }
 
 impl Singleton {
@@ -144,7 +144,7 @@ impl Singleton {
             match &SINGLETON_HTTP_CLIENT {
                 Some(r) => r,
                 None => {
-                    let mut client = reqwest::Client::builder();
+                    let mut client = reqwest::blocking::Client::builder();
                     if let Some(p) = proxy {
                         client = client.proxy(reqwest::Proxy::http(p).unwrap());
                     }
