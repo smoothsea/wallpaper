@@ -3,7 +3,7 @@ use crate::Params;
 
 use rand::Rng;
 use regex::Regex;
-use reqwest;
+use reqwest::{self, header};
 use std::collections::HashMap;
 use std::error::Error;
 use std::fs::*;
@@ -144,7 +144,10 @@ impl Singleton {
             match &SINGLETON_HTTP_CLIENT {
                 Some(r) => r,
                 None => {
-                    let mut client = reqwest::blocking::Client::builder();
+                    let mut headers = header::HeaderMap::new();
+                    headers.insert("User-agent", header::HeaderValue::from_static(
+                            "Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/95.0.4638.69 Safari/537.36"));
+                    let mut client = reqwest::blocking::Client::builder().default_headers(headers);
                     if let Some(p) = proxy {
                         client = client.proxy(reqwest::Proxy::http(p).unwrap());
                     }
@@ -185,7 +188,7 @@ impl Wallhaven {
         let re = Regex::new("id=\"wallpaper\" src=\"(.*?)\"")?;
         let mut full_pic_url = "".to_string();
         for caps in re.captures_iter(&body) {
-            full_pic_url = caps[1].to_string();
+            full_pic_url = Self::parse_pic_url(caps[1].to_string());
         }
 
         let filename = get_basename(&full_pic_url);
@@ -195,6 +198,13 @@ impl Wallhaven {
         res.read_to_end(&mut body)?;
 
         Ok(Pic::new(filename, body))
+    }
+
+    fn parse_pic_url(mut url: String) -> String {
+        if url.starts_with("/cdn-cgi") {
+            url = format!("https://w.wallhaven.cc{}", url);
+        }
+        url
     }
 }
 
