@@ -286,9 +286,12 @@ impl Wallpaper for Wstock {
         let mut body = "".to_string();
         res.read_to_string(&mut body)?;
         let re = Regex::new("class=\"pagination\">.*?a>\\.\\.\\.<a.*?>(\\d+)</")?;
-        let max_page_match = (&re.captures_iter(&body).next().unwrap()[1])
-            .parse::<u32>()
-            .unwrap();
+        let matches = &re.captures_iter(&body).next();
+        if matches.is_none() {
+           Err("Page Not Found")?
+        }
+
+        let max_page_match = (matches.as_ref().unwrap()[1]).parse::<u32>().unwrap();
 
         let random_page = rand::thread_rng().gen_range(1, max_page_match);
         let url = format!(
