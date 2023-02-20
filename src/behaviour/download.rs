@@ -88,19 +88,36 @@ pub fn download(params: &Params) {
     let mut pic_count: usize = 0;
     //get pictures
     println!("Starting...");
-    let wallpapers: Vec<Box<dyn Wallpaper>> = vec![Box::new(Wstock), Box::new(Wallhaven)];
     for i in resolution.iter() {
-        let index = rand::thread_rng().gen_range(0, wallpapers.len());
-        match wallpapers
-            .get(index)
-            .unwrap()
-            .get_pics(i, sfw, &params.proxy)
-        {
-            Ok(ret) => {
-                pic_count += ret.len();
-                pics.insert(i.to_owned(), ret);
+        let mut available_wallpapers: Vec<Box<dyn Wallpaper>> = vec![Box::new(Wstock), Box::new(Wallhaven)];
+        
+        while available_wallpapers.len() > 0 {
+            let index = rand::thread_rng().gen_range(0, available_wallpapers.len());
+            match available_wallpapers
+                .get(index)
+                .unwrap()
+                .get_pics(i, sfw, &params.proxy)
+            {
+                Ok(ret) => {
+                    pic_count += ret.len();
+                    pics.insert(i.to_owned(), ret);
+
+                    break;
+                },
+                Err(e) => {
+                    match e {
+                        DownloadError::NotFound => {
+                            available_wallpapers.remove(index);
+
+                            if available_wallpapers.len() == 0 {
+                                fatal!("Main error Not Found");
+                            }
+                        },
+                        _ => panic!("Main error {}", e),
+                    }
+                    
+                },
             }
-            Err(e) => panic!("Main error {}", e),
         }
     }
     println!("Gets {} wallpapers", pic_count);
@@ -160,8 +177,54 @@ impl Singleton {
     }
 }
 
-struct Wallhaven;
+#[derive(Debug)]
+enum DownloadError {
+    Reqwest(reqwest::Error),
+    Io(std::io::Error),
+    Regex(regex::Error),
+    NotFound,
+}
 
+impl std::fmt::Display for DownloadError {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        match self {
+            DownloadError::Reqwest(error) => {
+                write!(f, "{}", error)
+            },
+            DownloadError::Io(error) => {
+                write!(f, "{}", error)
+            },
+            DownloadError::Regex(error) => {
+                write!(f, "{}", error)
+            },
+            DownloadError::NotFound => {
+                write!(f, "Not found")
+            },
+        }
+    }
+}
+
+impl From<reqwest::Error> for DownloadError {
+    fn from(err: reqwest::Error) -> Self {
+        DownloadError::Reqwest(err)
+    }
+}
+
+impl From<std::io::Error> for DownloadError {
+    fn from(err: std::io::Error) -> Self {
+        DownloadError::Io(err)
+    }
+}
+
+impl From<regex::Error> for DownloadError {
+    fn from(err: regex::Error) -> Self {
+        DownloadError::Regex(err)
+    }
+}
+
+impl std::error::Error for DownloadError {}
+
+struct Wallhaven;
 struct Wstock;
 
 trait Wallpaper {
@@ -170,7 +233,7 @@ trait Wallpaper {
         resolution: &str,
         sfw: bool,
         proxy: &Option<String>,
-    ) -> Result<Vec<Pic>, Box<dyn Error>>;
+    ) -> Result<Vec<Pic>, DownloadError>;
 }
 
 impl Wallhaven {
@@ -231,7 +294,7 @@ impl Wallpaper for Wallhaven {
         resolution: &str,
         sfw: bool,
         proxy: &Option<String>,
-    ) -> Result<Vec<Pic>, Box<dyn Error>> {
+    ) -> Result<Vec<Pic>, DownloadError> {
         let mut category = 111;
         let mut purity = 110;
         if sfw {
@@ -278,7 +341,7 @@ impl Wallpaper for Wstock {
         resolution: &str,
         _sfw: bool,
         proxy: &Option<String>,
-    ) -> Result<Vec<Pic>, Box<dyn Error>> {
+    ) -> Result<Vec<Pic>, DownloadError> {
         let client = &Singleton::new(proxy).v;
         let prefix_url = "https://wallpaperstock.net";
         let url = format!("{}/wallpapers_{}r.html", prefix_url, resolution,);
@@ -288,7 +351,7 @@ impl Wallpaper for Wstock {
         let re = Regex::new("class=\"pagination\">.*?a>\\.\\.\\.<a.*?>(\\d+)</")?;
         let matches = &re.captures_iter(&body).next();
         if matches.is_none() {
-           Err("Page Not Found")?
+            return Err(DownloadError::NotFound);
         }
 
         let max_page_match = (matches.as_ref().unwrap()[1]).parse::<u32>().unwrap();
