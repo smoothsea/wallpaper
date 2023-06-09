@@ -13,7 +13,7 @@ use std::thread::spawn;
 use std::{fs, thread, time};
 use function::{get_resolution, check_application, get_random_file, get_de};
 
-use crate::behaviour::download::{download};
+use crate::behaviour::download::download;
 use crate::tasker::shutdown::ShutdownSignal;
 
 #[macro_export]
@@ -29,9 +29,11 @@ macro_rules! fatal {
 pub struct Params {
     dir: String,
     is_video: bool,
+    is_gif: bool,
+    fps: u16,
     is_download: bool,
-    video_file: Option<String>,
-    video_compress_dir: Option<String>,
+    file: Option<String>,
+    compress_dir: Option<String>,
     download_empty: bool,
     resolution: Option<Vec<String>>,
     download_sfw: bool,
@@ -44,9 +46,11 @@ impl Params {
     fn new(
         dir: String,
         is_video: bool,
-        video_file: Option<String>,
+        is_gif: bool,
+        fps: u16,
+        file: Option<String>,
         is_download: bool,
-        video_compress_dir: Option<String>,
+        compress_dir: Option<String>,
         download_empty: bool,
         resolution: Option<Vec<String>>,
         download_sfw: bool,
@@ -57,9 +61,11 @@ impl Params {
         Params {
             dir,
             is_video,
+            is_gif,
+            fps,
             is_download,
-            video_file,
-            video_compress_dir,
+            file,
+            compress_dir,
             download_empty,
             resolution,
             download_sfw,
@@ -99,6 +105,8 @@ fn main() {
         loop {
             if params.is_video {
                 video(&params);
+            } else if params.is_gif {
+                gif(&params);
             } else {
                 image(&params);
             }
@@ -107,7 +115,7 @@ fn main() {
 
     signal.at_exit(move |_| {
         if params_c.is_video {
-            fs::remove_dir_all(params_c.video_compress_dir.clone().unwrap()).unwrap();
+            fs::remove_dir_all(params_c.compress_dir.clone().unwrap()).unwrap();
         }
         std::process::abort();
    });
@@ -115,39 +123,36 @@ fn main() {
 
 fn video(params: &Params) {
     let interval = time::Duration::from_millis(1);
-    let dir = params.video_compress_dir.clone().unwrap();
-    fs::create_dir(&dir).unwrap();
+    let dir = params.compress_dir.clone().unwrap();
     println!("Start processing video files...");
     Command::new("ffmpeg")
         .arg("-y")
         .arg("-ss")
         .arg("00:00")
         .arg("-i")
-        .arg(params.video_file.clone().unwrap())
+        .arg(params.file.clone().unwrap())
         .arg(format!("{}/filename%09d.jpg", &dir))
         .output()
         .expect("sh command failed to start");
-
-    let mut v: Vec<_> = fs::read_dir(&dir)
-        .unwrap()
-        .map(|r| r.unwrap())
-        .collect();
-    v.sort_by_key(|dir| dir.path());
-    let count = v.len();
     println!("Ok");
 
-    let mut i = 0;
-    let de = get_de();
-    while i < count {
-        let pic_path = format!("{}", &v[i].path().display());
-        de.set_wallpaper(vec!(pic_path));
-        i += 1;
-        if i == count - 1 {
-            i = 0;
-        }
+    loop_dir(interval, &dir);
+}
 
-        thread::sleep(interval);
-    }
+fn gif(params: &Params) {
+    let mill =  1000 / params.fps;
+    let interval = time::Duration::from_millis(mill.into());
+    let dir = params.compress_dir.clone().unwrap();
+    println!("Start processing gif files...");
+    Command::new("convert")
+        .arg(params.file.clone().unwrap())
+        .arg("-coalesce")
+        .arg(format!("{}/filename%09d.jpg", &dir))
+        .output()
+        .expect("sh command failed to start");
+    println!("Ok");
+
+    loop_dir(interval, &dir);
 }
 
 fn image(params: &Params) {
@@ -212,7 +217,7 @@ fn get_params() -> Result<Params, Box<dyn Error>> {
         )
         .subcommand(
             SubCommand::with_name("video").help_message("help").version_message("version")
-            .about("Set video as dynamic wallpaper").arg(
+            .about("Set a video as a background").arg(
                 Arg::with_name("file")
                     .short("f")
                     .long("file")
@@ -221,6 +226,26 @@ fn get_params() -> Result<Params, Box<dyn Error>> {
                     .required(true)
                     .takes_value(true),
             ),
+        )
+        .subcommand(
+            SubCommand::with_name("gif").help_message("help").version_message("version")
+            .about("Set a gif as a background").arg(
+                Arg::with_name("file")
+                    .short("f")
+                    .long("file")
+                    .help("Gif path")
+                    .validator(is_gif)
+                    .required(true)
+                    .takes_value(true),
+            ).arg(
+                Arg::with_name("fps")
+                    .short("p")
+                    .long("fps")
+                    .default_value("10")
+                    .help("Gif FPS")
+                    .validator(is_valid_fps)
+                    .takes_value(true),
+                ),
         )
         .subcommand(
             SubCommand::with_name("download").help_message("help").version_message("version")
@@ -250,11 +275,9 @@ fn get_params() -> Result<Params, Box<dyn Error>> {
         )
         .get_matches();
     let is_video = matches.is_present("video");
-    let is_download = matches.is_present("download");
-    let mut video_file = None;
-    let mut video_compress_dir = None;
+    let mut file = None;
     if is_video {
-        video_file = Some(
+        file = Some(
             matches
                 .subcommand_matches("video")
                 .unwrap()
@@ -262,11 +285,37 @@ fn get_params() -> Result<Params, Box<dyn Error>> {
                 .unwrap_or("no file")
                 .to_owned(),
         );
+    }
 
+    let is_gif = matches.is_present("gif");
+    let mut fps = 0;
+    if is_gif {
+        file = Some(
+            matches
+                .subcommand_matches("gif")
+                .unwrap()
+                .value_of("file")
+                .unwrap_or("no file")
+                .to_owned(),
+        );
+
+        fps = matches
+                .subcommand_matches("gif")
+                .unwrap()
+                .value_of("fps")
+                .unwrap()
+                .to_owned().parse::<u16>()
+                .unwrap();
+    }
+
+    let mut compress_dir = None;
+    if is_video || is_gif {
         let rand_string: String = gen_rand_string();
         let mut path = env::temp_dir();
         path.push(rand_string);
-        video_compress_dir = Some(path.as_path().to_str().unwrap().to_owned());
+        compress_dir = Some(path.as_path().to_str().unwrap().to_owned());
+
+        fs::create_dir(&path).unwrap();
     }
 
     let mut default_dir = "".to_owned();
@@ -294,6 +343,7 @@ fn get_params() -> Result<Params, Box<dyn Error>> {
         None => {},
     };
 
+    let is_download = matches.is_present("download");
     if is_download {
         download_empty = matches.subcommand_matches("download")
                         .unwrap()
@@ -321,8 +371,8 @@ fn get_params() -> Result<Params, Box<dyn Error>> {
         dir.push_str("/");
     }
 
-    if !is_video && resolution == None {
-        fatal!("Get resolution error.Please specify the resolution.");        
+    if !is_video && !is_gif && resolution == None {
+        fatal!("Please specify the resolution.");        
     }
 
     // check dir
@@ -356,9 +406,11 @@ fn get_params() -> Result<Params, Box<dyn Error>> {
     Ok(Params::new(
         dir,
         is_video,
-        video_file,
+        is_gif,
+        fps,
+        file,
         is_download,
-        video_compress_dir,
+        compress_dir,
         download_empty,
         resolution,
         download_sfw,
@@ -383,6 +435,35 @@ fn is_mp4(file: String) -> Result<(), String> {
     Ok(())
 }
 
+fn is_gif(file: String) -> Result<(), String> {
+    if !file.ends_with(".gif") {
+        return Err(String::from("Gif needs to be .gif suffix"));
+    }
+
+    match fs::OpenOptions::new().read(true).open(file) {
+        Ok(_f) => {}
+        Err(e) => {
+            return Err(format!("{}", e));
+        }
+    }
+
+    Ok(())
+}
+
+fn is_valid_fps(fps: String) -> Result<(), String> {
+    let fps = match fps.parse::<u16>() {
+        Ok(f) => f,
+        Err(_e) => {
+            return Err(String::from("The range of FPS is an integer from 1 to 1000"));
+        }
+    };
+    if fps < 1 || fps > 1000 {
+        return Err(String::from("The range of FPS is an integer from 1 to 1000"));
+    }
+
+    Ok(())
+}
+
 fn check_dependency(params: &Params) {
     let mut dependencies: Vec<&str> = vec![];
     let de = get_de();
@@ -395,6 +476,12 @@ fn check_dependency(params: &Params) {
     if params.is_video {
         dependencies.append(&mut vec![
             "ffmpeg", "convert", "xdg-open", "bash", "sed",
+        ]);
+    }
+
+    if params.is_gif {
+        dependencies.append(&mut vec![
+            "convert", "bash",
         ]);
     }
 
@@ -416,4 +503,26 @@ fn gen_rand_string() -> String {
             CHARSET[idx] as char
         })
         .collect()
+}
+
+fn loop_dir(interval: core::time::Duration, dir: &str) {
+    let mut v: Vec<_> = fs::read_dir(dir)
+        .unwrap()
+        .map(|r| r.unwrap())
+        .collect();
+    v.sort_by_key(|dir| dir.path());
+    let count = v.len();
+
+    let mut i = 0;
+    let de = get_de();
+    while i < count {
+        let pic_path = format!("{}", &v[i].path().display());
+        de.set_wallpaper(vec!(pic_path));
+        i += 1;
+        if i == count - 1 {
+            i = 0;
+        }
+
+        thread::sleep(interval);
+    }
 }
