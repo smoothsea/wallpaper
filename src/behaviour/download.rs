@@ -89,7 +89,7 @@ pub fn download(params: &Params) {
     //get pictures
     println!("Starting...");
     for i in resolution.iter() {
-        let mut available_wallpapers: Vec<Box<dyn Wallpaper>> = vec![Box::new(Wstock), Box::new(Wallhaven)];
+        let mut available_wallpapers: Vec<Box<dyn Wallpaper>> = vec![Box::new(Wallhaven)];
         
         while available_wallpapers.len() > 0 {
             let index = rand::thread_rng().gen_range(0, available_wallpapers.len());
@@ -166,7 +166,7 @@ impl Singleton {
                             "Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/95.0.4638.69 Safari/537.36"));
                     let mut client = reqwest::blocking::Client::builder().default_headers(headers);
                     if let Some(p) = proxy {
-                        client = client.proxy(reqwest::Proxy::http(p).unwrap());
+                        client = client.proxy(reqwest::Proxy::https(p).unwrap());
                     }
                     let client = client.build().unwrap();
                     SINGLETON_HTTP_CLIENT = Some(Singleton { v: client });
